@@ -25,6 +25,10 @@
 #include <plat/common/platform.h>
 #include <platform_def.h>
 
+#include <drivers/arm/gicv3.h>
+#include <bl31/interrupt_mgmt.h>
+
+
 struct transfer_list_header *secure_tl;
 struct transfer_list_header *ns_tl __unused;
 
@@ -375,6 +379,20 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 	plat_arm_interconnect_enter_coherency();
 }
 
+
+
+
+
+static uint64_t arm_el3_interrupt_handler(uint32_t id, uint32_t flags,
+                                          void *handle, void *cookie)
+{
+    uint32_t intid = gicv3_acknowledge_interrupt();   /* IAR0_EL1 */
+    if (intid < 1020u) { /* 0..1019 为有效 INTID */
+        NOTICE("EL3(plat): intid=%u\n", intid);
+        gicv3_end_of_interrupt(intid);               /* EOIR0_EL1 */
+    }
+    return 0;
+}
 /*******************************************************************************
  * Perform any BL31 platform setup common to ARM standard platforms
  ******************************************************************************/
@@ -453,6 +471,7 @@ void arm_bl31_platform_setup(void)
 #if USE_GIC_DRIVER == 3
 	gic_set_gicr_frames(gicr_base_addrs);
 #endif
+	(void)register_interrupt_type_handler(INTR_TYPE_EL3, arm_el3_interrupt_handler, 0);
 }
 
 /*******************************************************************************
