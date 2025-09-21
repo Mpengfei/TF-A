@@ -102,6 +102,10 @@ static void __init bl31_lib_init(void)
  * switch to the next exception level. When this function returns, the core will
  * switch to the programmed exception level via an ERET.
  ******************************************************************************/
+extern void test_gic_distributor(void);
+extern void test_gic_redistributor(void);
+extern void test_sgi_enable(void);
+extern void sgi_demo_el3_init(void);
 void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg2,
 		u_register_t arg3)
 {
@@ -150,6 +154,8 @@ void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg
 	dsu_driver_init(&plat_dsu_data);
 #endif
 
+#ifdef DISABLE_PLAT_GIC
+#else
 #if USE_GIC_DRIVER
 	/*
 	 * Initialize the GIC driver as well as per-cpu and global interfaces.
@@ -159,8 +165,15 @@ void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg
 	gic_pcpu_init(core_pos);
 	gic_cpuif_enable(core_pos);
 #endif /* USE_GIC_DRIVER */
+#endif
 
+	//test_gic_distributor();
+	//test_gic_redistributor();
+	//test_sgi_enable();
+
+	sgi_demo_el3_init();
 	/* Initialise helper libraries */
+
 	bl31_lib_init();
 
 #if EL3_EXCEPTION_HANDLING
@@ -215,7 +228,6 @@ void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg
 		}
 	}
 #endif
-
 	/*
 	 * We are ready to enter the next EL. Prepare entry into the image
 	 * corresponding to the desired security state after the next ERET.

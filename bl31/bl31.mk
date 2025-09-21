@@ -50,7 +50,9 @@ BL31_SOURCES		+=	bl31/bl31_main.c				\
 				${SPMD_SOURCES}					\
 				${SPM_MM_SOURCES}				\
 				${SPMC_SOURCES}					\
-				${SPM_SOURCES}
+				${SPM_SOURCES}					\
+				bl31/gic_test.c					\
+				bl31/sgi_demo_el3.c
 
 VENDOR_EL3_SRCS		+=	services/el3/ven_el3_svc.c
 

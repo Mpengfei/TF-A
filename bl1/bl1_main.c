@@ -49,7 +49,7 @@ uint64_t bl1_apiakey[2];
 void __no_pauth bl1_main(void)
 {
 	unsigned int image_id;
-
+	NOTICE("BL31: entering bl31_main\n");
 	/* Enable early console if EARLY_CONSOLE flag is enabled */
 	plat_setup_early_console();
 
@@ -86,9 +86,11 @@ void __no_pauth bl1_main(void)
 #else
 	val = read_sctlr();
 #endif
+#if !defined(DISABLE_MMU)
 	assert((val & SCTLR_M_BIT) != 0);
 	assert((val & SCTLR_C_BIT) != 0);
 	assert((val & SCTLR_I_BIT) != 0);
+#endif
 	/*
 	 * Check that Cache Writeback Granule (CWG) in CTR_EL0 matches the
 	 * provided platform value

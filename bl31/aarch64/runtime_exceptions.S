@@ -150,12 +150,14 @@ vector_entry irq_sp_el0
 	 * EL3 code is non-reentrant. Any asynchronous exception is a serious
 	 * error. Loop infinitely.
 	 */
-	b	report_unhandled_interrupt
+	#b	report_unhandled_interrupt
+	b  handle_interrupt_exception
 end_vector_entry irq_sp_el0
 
 
 vector_entry fiq_sp_el0
-	b	report_unhandled_interrupt
+	#b	report_unhandled_interrupt
+	b  handle_interrupt_exception
 end_vector_entry fiq_sp_el0
 
 
@@ -178,11 +180,13 @@ vector_entry sync_exception_sp_elx
 end_vector_entry sync_exception_sp_elx
 
 vector_entry irq_sp_elx
-	b	report_unhandled_interrupt
+	#b	report_unhandled_interrupt
+	b  handle_interrupt_exception
 end_vector_entry irq_sp_elx
 
 vector_entry fiq_sp_elx
-	b	report_unhandled_interrupt
+	#b	report_unhandled_interrupt
+	b  handle_interrupt_exception
 end_vector_entry fiq_sp_elx
 
 vector_entry serror_sp_elx

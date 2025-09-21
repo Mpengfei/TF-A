@@ -94,10 +94,12 @@ void __init bl31_early_platform_setup2(u_register_t arg0,
 void __init bl31_platform_setup(void)
 {
 	arm_bl31_platform_setup();
-
+#ifdef DISABLE_PLAT_GIC
+#else
 #if USE_GIC_DRIVER == 3
 	fvp_pcpu_init();
 	fvp_gic_driver_pre_init();
+#endif
 #endif
 }
 

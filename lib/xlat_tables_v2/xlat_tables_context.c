@@ -210,30 +210,45 @@ int xlat_make_tables_readonly(void)
 
 void enable_mmu_el1(unsigned int flags)
 {
+#ifdef DISABLE_MMU
+	(void)flags; 
+#else
 	setup_mmu_cfg((uint64_t *)&mmu_cfg_params, flags,
 		      tf_xlat_ctx.base_table, MAX_PHYS_ADDR,
 		      tf_xlat_ctx.va_max_address, EL1_EL0_REGIME);
 	enable_mmu_direct_el1(flags);
+#endif
 }
 
 void enable_mmu_el2(unsigned int flags)
 {
+#ifdef DISABLE_MMU
+	(void)flags; 
+#else
 	setup_mmu_cfg((uint64_t *)&mmu_cfg_params, flags,
 		      tf_xlat_ctx.base_table, MAX_PHYS_ADDR,
 		      tf_xlat_ctx.va_max_address, EL2_REGIME);
 	enable_mmu_direct_el2(flags);
+#endif
 }
 
 void enable_mmu_el3(unsigned int flags)
 {
+#ifdef DISABLE_MMU
+    (void)flags;
+#else
 	setup_mmu_cfg((uint64_t *)&mmu_cfg_params, flags,
 		      tf_xlat_ctx.base_table, MAX_PHYS_ADDR,
 		      tf_xlat_ctx.va_max_address, EL3_REGIME);
 	enable_mmu_direct_el3(flags);
+#endif
 }
 
 void enable_mmu(unsigned int flags)
 {
+#ifdef DISABLE_MMU
+    (void)flags;
+#else
 	switch (get_current_el_maybe_constant()) {
 	case 1:
 		enable_mmu_el1(flags);
@@ -247,6 +262,7 @@ void enable_mmu(unsigned int flags)
 	default:
 		panic();
 	}
+#endif
 }
 
 #else /* !__aarch64__ */
@@ -268,3 +284,4 @@ void enable_mmu_hyp(unsigned int flags)
 }
 
 #endif /* __aarch64__ */
+
