@@ -106,7 +106,7 @@ extern void test_gic_distributor(void);
 extern void test_gic_redistributor(void);
 extern void test_sgi_enable(void);
 extern void sgi_demo_el3_init(void);
-
+extern void sgi_demo_el3_late_kick(void);
 void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg2,
 		u_register_t arg3)
 {
@@ -213,6 +213,7 @@ void __no_pauth bl31_main(u_register_t arg0, u_register_t arg1, u_register_t arg
 		}
 	}
 
+	sgi_demo_el3_late_kick();
 	/*
 	 * If RME is enabled and init hook is registered, initialize RMM
 	 * in R-EL2.

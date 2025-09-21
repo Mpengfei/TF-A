@@ -14,9 +14,7 @@
 #include <platform_def.h>
 
 /* ========== 选项：是否在本文件自行注册 EL3 handler（默认 0，建议用平台注册） ========== */
-#ifndef SGI_DEMO_REGISTER_LOCAL_EL3_HANDLER
-#define SGI_DEMO_REGISTER_LOCAL_EL3_HANDLER   0
-#endif
+
 
 #define SGI_ID       U(0)      /* SGI0 */
 #define SGI_PRIORITY U(0x10)
@@ -139,7 +137,10 @@ static void open_el3_g0_path(void)
 }
 #endif
 
-
+static inline void unmask_all(void)
+{
+    asm volatile("msr daifclr, #3" ::: "memory"); // 清 FIQ(1) 和 IRQ(2)
+}
 static void unmask_irqs(void)
 {
     asm volatile("msr daifclr, #3" ::: "memory"); // 清除 IRQ(0x2) 和 FIQ(0x1)
@@ -177,17 +178,24 @@ static void send_sgi0_to_self(void)
 	unsigned long aff2 = (mpidr >> 16) & 0xFFUL;
 	unsigned long aff3 = (mpidr >> 32) & 0xFFUL;
 
-	uint64_t sgi0r = GICV3_SGIR_VALUE(aff3, aff2, aff1, SGI_ID,
-	                                  SGIR_IRM_TO_AFF, (1UL << aff0));
+	//uint64_t sgi0r = GICV3_SGIR_VALUE(aff3, aff2, aff1, SGI_ID,
+	//                                  SGIR_IRM_TO_AFF, (1UL << aff0));
+    uint64_t sgi0r = GICV3_SGIR_VALUE(aff3, aff2, aff1, SGI_ID,
+                                      U(0), (1UL << aff0));
+    dsbsy();
+    isb();
+
 	write_icc_sgi0r_el1(sgi0r); /* EL3/Group0 用 SGI0R */
-	isb();
+	dsbsy();
+    isb();
 	NOTICE("EL3: SGI%u sent to self (MPIDR 0x%lx)\n", SGI_ID, (unsigned long)mpidr);
 }
-
+#define SGI_DEMO_REGISTER_LOCAL_EL3_HANDLER   1
 /* 可选：本地 EL3 handler（默认不注册；若要本地注册，把宏置 1 即可） */
 static __attribute__((used))
 uint64_t sgi_demo_el3_handler(uint32_t id, uint32_t flags, void *h, void *cookie)
 {
+    NOTICE("EL3 Interrupe\n");
 	uint32_t intid = gicv3_acknowledge_interrupt(); /* IAR0 */
 	if (!gicv3_is_intr_id_special_identifier(intid)) {
 		NOTICE("EL3(local): intid=%u (param id=%u)\n", intid, id);
@@ -195,6 +203,29 @@ uint64_t sgi_demo_el3_handler(uint32_t id, uint32_t flags, void *h, void *cookie
 	}
 	return 0U;
 }
+
+
+/* bl31/sgi_demo_el3.c 里，保留你已有的 init/handler，不再在 init 里发 SGI/WFI */
+void sgi_demo_el3_late_kick(void)
+{
+    /* 可选：读一次挂起寄存器，仅用于调试观测 */
+    //uintptr_t rd = find_my_rdist();
+
+    /* 此时 G0、PMR、SRE、SCR_EL3 路由都已在你的 init 里打开 */
+    dsbsy(); isb();
+    /* 直接发 SGI0（同你已有的 send_sgi0_to_self） */
+    u_register_t mpidr = read_mpidr_el1();
+    unsigned long aff0 =  mpidr        & 0xFFUL;
+    unsigned long aff1 = (mpidr >>  8) & 0xFFUL;
+    unsigned long aff2 = (mpidr >> 16) & 0xFFUL;
+    unsigned long aff3 = (mpidr >> 32) & 0xFFUL;
+    uint64_t sgi0r = GICV3_SGIR_VALUE(aff3, aff2, aff1, SGI_ID, U(0)/*IRM=to list*/, (1UL << aff0));
+    write_icc_sgi0r_el1(sgi0r);
+    dsbsy(); isb();
+    NOTICE("EL3(late): SGI%u sent to self\n", SGI_ID);
+    /* 这里不要 WFI；让异常自然打断正常流程进入向量表即可 */
+}
+
 
 /* 入口：在 bl31 平台 setup 里调用（GIC 初始化之后） */
 void sgi_demo_el3_init(void)
@@ -206,8 +237,13 @@ void sgi_demo_el3_init(void)
 	config_sgi0_on_this_cpu(my_rdist);
 
 #if SGI_DEMO_REGISTER_LOCAL_EL3_HANDLER
-	int rc = register_interrupt_type_handler(INTR_TYPE_EL3, sgi_demo_el3_handler, 0U);
+    const uint32_t RM_SEC = U(1) << INTR_RM_FLAGS_SHIFT;          // secure -> EL3
+    const uint32_t RM_NS  = U(1) << (INTR_RM_FLAGS_SHIFT + 1);    // nonsecure -> EL3
+    int rc = register_interrupt_type_handler(INTR_TYPE_EL3, sgi_demo_el3_handler,
+                                         RM_SEC | RM_NS);
+	//int rc = register_interrupt_type_handler(INTR_TYPE_EL3, sgi_demo_el3_handler, 0U);
 	if (rc) NOTICE("register_interrupt_type_handler rc=%d\n", rc);
+    NOTICE("register_interrupt_type_handler rc=%d\n", rc);
 #endif
 
 	//open_el3_g0_path();
@@ -223,9 +259,21 @@ void sgi_demo_el3_init(void)
 			break;
 		}
 	}
+    unmask_all();   // <--- 在发 SGI 之前强制清屏蔽
+    NOTICE("DAIF after unmask_all = 0x%lx\n", read_daif());
+	
+    /* 发之前看看有没有脏挂起 */
+    uint32_t pend_before = mmio_read_32(my_rdist + GICR_ISPENDR0);
+    unsigned hppir0_before = (unsigned)read_icc_hppir0_el1();
+    NOTICE("EL3: before SGI  ISPENDR0=0x%x, HPPIR0=%u\n", pend_before, hppir0_before);
+	
+    /* 触发 SGI0（应以 FIQ 进入 EL3 handler） */
+    send_sgi0_to_self();
 
-	/* 触发 SGI0（应以 FIQ 进入 EL3 handler） */
-	send_sgi0_to_self();
+    /* 发之后再看一次，应该能看到 SGI0 挂起 */
+    uint32_t pend_after = mmio_read_32(my_rdist + GICR_ISPENDR0);
+    unsigned hppir0_after = (unsigned)read_icc_hppir0_el1();
+    NOTICE("EL3: after  SGI  ISPENDR0=0x%x, HPPIR0=%u\n", pend_after, hppir0_after);
 
 	/* 可选：等一下，确保走异常路径 */
 	dsbsy(); isb();

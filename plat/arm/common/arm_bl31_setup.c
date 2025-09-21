@@ -382,7 +382,7 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 
 
 
-
+#if 0
 static uint64_t arm_el3_interrupt_handler(uint32_t id, uint32_t flags,
                                           void *handle, void *cookie)
 {
@@ -393,6 +393,7 @@ static uint64_t arm_el3_interrupt_handler(uint32_t id, uint32_t flags,
     }
     return 0;
 }
+#endif
 /*******************************************************************************
  * Perform any BL31 platform setup common to ARM standard platforms
  ******************************************************************************/
@@ -471,7 +472,7 @@ void arm_bl31_platform_setup(void)
 #if USE_GIC_DRIVER == 3
 	gic_set_gicr_frames(gicr_base_addrs);
 #endif
-	(void)register_interrupt_type_handler(INTR_TYPE_EL3, arm_el3_interrupt_handler, 0);
+	//(void)register_interrupt_type_handler(INTR_TYPE_EL3, arm_el3_interrupt_handler, 0);
 }
 
 /*******************************************************************************
